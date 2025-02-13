@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Energy Consumption Prediction</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 500px;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    .custom-label {
+      font-size: 14px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="mt-4 mb-4">Energy Consumption Prediction</h1>
+    
+    <!-- Input Form -->
+    <form method="POST" action="/predict">
+      <div class="form-group">
+        <label for="year">Year</label>
+        <input type="number" class="form-control" id="year" name="year" placeholder="Enter Year (e.g., 1980)" required>
+      </div>
+      <div class="form-group">
+        <label for="country">Country</label>
+        <input type="text" class="form-control" id="country" name="country" placeholder="Enter Country Name (e.g., India)" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Predict Energy Consumption</button>
+    </form>
+    
+    <!-- Display Prediction Result -->
+    {% if prediction_text %}
+      <div class="alert alert-info mt-4">
+        <h4>Prediction Result</h4>
+        <p>{{ prediction_text }}</p>
+      </div>
+    {% endif %}
+    
+    <!-- Map Section -->
+    <h2 class="mt-5">Map</h2>
+    <div id="map"></div>
+  </div>
+
+  <!-- jQuery and Leaflet JS -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  
+  <script>
+    // Initialize the Leaflet map
+    var map = L.map('map').setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    // Global variable to hold the GeoJSON layer
+    var geojsonLayer;
+    
+    // URL for world countries GeoJSON data
+    var geojsonURL = "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";
+    
+    // Load the GeoJSON data for countries
+    $.getJSON(geojsonURL, function(data) {
+      geojsonLayer = L.geoJson(data, {
+        style: function(feature) {
+          // Default style for non-target countries: invisible borders & no fill
+          return {
+            color: "transparent",
+            weight: 0,
+            fillOpacity: 0
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          // (Optional) Bind a popup if needed
+          // layer.bindPopup(feature.properties.ADMIN);
+        }
+      }).addTo(map);
+      
+      // If a country and prediction value were submitted, highlight it on the map.
+      {% if country and prediction_value %}
+        var countryName = "{{ country }}";
+        var predictedValue = {{ prediction_value }};
+        highlightCountry(countryName, predictedValue);
+      {% endif %}
+    });
+    
+    // Function to highlight the target country and add a label with the predicted value.
+    function highlightCountry(countryName, predictedValue) {
+      geojsonLayer.eachLayer(function(layer) {
+        var adminName = layer.feature.properties.ADMIN;
+        if(adminName.toLowerCase() === countryName.toLowerCase()){
+          // Style the target country with a red outline.
+          layer.setStyle({
+            color: "red",
+            weight: 2,
+            fillOpacity: 0
+          });
+          // Determine the center of the country polygon.
+          var bounds = layer.getBounds();
+          var center = bounds.getCenter();
+          // Add a marker at the center with a label showing the predicted value and units.
+          L.marker(center, {
+            icon: L.divIcon({
+              className: 'custom-label',
+              html: `<div style="background: white; padding: 2px 4px; border: 1px solid red;">${predictedValue.toFixed(2)} Units</div>`
+            })
+          }).addTo(map);
+          // Zoom to the highlighted country.
+          map.fitBounds(layer.getBounds());
+        }
+      });
+    }
+  </script>
+</body>
+</html>
